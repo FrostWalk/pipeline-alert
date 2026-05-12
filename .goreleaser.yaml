@@ -78,11 +78,14 @@ nfpms:
       - src: debian/pipeline-horn-client.default
         dst: /etc/default/pipeline-horn-client
         type: config
+      - src: horn.mp3
+        dst: /usr/share/pipeline-horn-client/horn.mp3
     overrides:
       deb:
         scripts:
           postinstall: debian/postinst
           preremove: debian/prerm
+          postremove: debian/postrm
 
 changelog:
   sort: asc

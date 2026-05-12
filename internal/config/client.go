@@ -11,7 +11,7 @@ import (
 
 const (
 	defaultClientServerPort = 443
-	defaultClientSoundPath  = "./sound.mp3"
+	defaultClientSoundPath  = "/usr/share/pipeline-horn-client/horn.mp3"
 )
 
 type ClientConfig struct {

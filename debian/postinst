@@ -1,8 +1,77 @@
 #!/bin/sh
 set -e
 
+CONFIG_FILE="/etc/default/pipeline-horn-client"
+
+extract_arg() {
+	key="$1"
+	shift
+	for arg in "$@"; do
+		case "$arg" in
+		--"$key"=*)
+			printf '%s' "${arg#--$key=}"
+			return 0
+			;;
+		esac
+	done
+	return 1
+}
+
+prompt_and_write_config() {
+	[ -r /dev/tty ] || return 0
+
+	current_args=""
+	if [ -f "$CONFIG_FILE" ]; then
+		# shellcheck disable=SC1090
+		. "$CONFIG_FILE" || true
+		current_args="${CLIENT_ARGS:-}"
+	fi
+
+	set -- $current_args
+	server_url="$(extract_arg server_url "$@" || true)"
+	server_port="$(extract_arg server_port "$@" || true)"
+	websocket_secret="$(extract_arg websocket_secret "$@" || true)"
+	sound_path="$(extract_arg sound_path "$@" || true)"
+
+	[ -n "$server_url" ] || server_url="example.com"
+	[ -n "$server_port" ] || server_port="443"
+	[ -n "$sound_path" ] || sound_path="/usr/share/pipeline-horn-client/horn.mp3"
+
+	printf '\nPipeline Horn client setup\n' > /dev/tty
+	printf 'Server URL [%s]: ' "$server_url" > /dev/tty
+	read -r input_url < /dev/tty || true
+	if [ -n "$input_url" ]; then
+		server_url="$input_url"
+	fi
+
+	while [ -z "$server_url" ]; do
+		printf 'Server URL cannot be empty. Enter server URL: ' > /dev/tty
+		read -r server_url < /dev/tty || true
+	done
+
+	printf 'Websocket token [%s]: ' "${websocket_secret:-<required>}" > /dev/tty
+	read -r input_token < /dev/tty || true
+	if [ -n "$input_token" ]; then
+		websocket_secret="$input_token"
+	fi
+
+	while [ -z "$websocket_secret" ]; do
+		printf 'Token cannot be empty. Enter websocket token: ' > /dev/tty
+		read -r websocket_secret < /dev/tty || true
+	done
+
+	cat > "$CONFIG_FILE" <<EOF
+# Generated during package installation.
+CLIENT_ARGS="--server_url=$server_url --server_port=$server_port --websocket_secret=$websocket_secret --sound_path=$sound_path"
+EOF
+}
+
 case "$1" in
 configure)
+	if [ -z "$2" ]; then
+		prompt_and_write_config
+	fi
+
 	if command -v deb-systemd-helper >/dev/null 2>&1; then
 		deb-systemd-helper unmask pipeline-horn-client.service || true
 		deb-systemd-helper enable pipeline-horn-client.service || true

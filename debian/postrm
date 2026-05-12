@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+remove|purge)
+	if command -v deb-systemd-helper >/dev/null 2>&1; then
+		deb-systemd-helper stop pipeline-horn-client.service >/dev/null 2>&1 || true
+		deb-systemd-helper disable pipeline-horn-client.service >/dev/null 2>&1 || true
+		deb-systemd-helper unmask pipeline-horn-client.service >/dev/null 2>&1 || true
+		if [ "$1" = "purge" ]; then
+			deb-systemd-helper purge pipeline-horn-client.service >/dev/null 2>&1 || true
+		fi
+	fi
+
+	rm -f /etc/default/pipeline-horn-client
+	rm -f /lib/systemd/system/pipeline-horn-client.service
+	rm -f /usr/share/pipeline-horn-client/horn.mp3
+	rmdir /usr/share/pipeline-horn-client >/dev/null 2>&1 || true
+	;;
+esac
+
+#DEBHELPER#
+
+exit 0

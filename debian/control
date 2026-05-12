@@ -1,10 +1,9 @@
 Source: pipeline-horn
 Section: utils
 Priority: optional
-Maintainer: Federico <federico@example.com>
+Maintainer: Federico
 Build-Depends: debhelper-compat (= 13)
 Standards-Version: 4.6.2
-Homepage: https://gitlab.com/example/pipeline-horn
 
 Package: pipeline-horn-client
 Architecture: armhf

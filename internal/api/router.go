@@ -11,7 +11,6 @@ import (
 func NewRouter(server *Server) *gin.Engine {
 	router := gin.Default()
 	router.Use(loggerMiddleware(server.logger))
-	router.GET("/healthz", server.Healthz)
 	router.POST("/webhook", server.Webhook)
 	router.GET("/ws", server.Websocket)
 
