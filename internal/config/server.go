@@ -21,6 +21,7 @@ const (
 	envServerWebsocketSecret = "WEBSOCKET_SECRET"
 	envServerWebhookSecret   = "WEBHOOK_SECRET"
 	envServerTokenHeader     = "TOKEN_HEADER"
+	envServerGroupPath       = "GITLAB_GROUP_PATH"
 )
 
 // ServerConfig contains runtime settings for the app server.
@@ -30,6 +31,7 @@ type ServerConfig struct {
 	WebsocketSecret string `json:"websocket_secret"`
 	WebhookSecret   string `json:"webhook_secret"`
 	TokenHeader     string `json:"token_header"`
+	GroupPath       string `json:"group_path"`
 }
 
 // LoadServerConfig loads server config from config.json, then overlays environment variables.
@@ -105,6 +107,10 @@ func applyServerEnv(cfg *ServerConfig) error {
 		cfg.TokenHeader = value
 	}
 
+	if value, ok := os.LookupEnv(envServerGroupPath); ok {
+		cfg.GroupPath = value
+	}
+
 	return nil
 }
 
@@ -125,6 +131,9 @@ func validateServerConfig(cfg ServerConfig) error {
 	}
 	if strings.TrimSpace(cfg.TokenHeader) == "" {
 		errs = append(errs, fmt.Errorf("token_header is required"))
+	}
+	if strings.TrimSpace(cfg.GroupPath) == "" {
+		errs = append(errs, fmt.Errorf("group_path is required"))
 	}
 
 	return errors.Join(errs...)

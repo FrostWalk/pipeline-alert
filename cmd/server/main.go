@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"pipeline-horn/internal/api"
 	"pipeline-horn/internal/config"
 	applog "pipeline-horn/internal/log"
 
@@ -30,4 +31,11 @@ func main() {
 		zap.String("host", cfg.Host),
 		zap.Int("port", cfg.Port),
 	)
+
+	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+	server := api.NewServer(cfg, logger)
+	logger.Info("server listening", zap.String("addr", addr))
+	if err := api.NewRouter(server).Run(addr); err != nil {
+		logger.Fatal("server stopped", zap.Error(err))
+	}
 }

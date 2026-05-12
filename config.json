@@ -3,5 +3,6 @@
   "host": "0.0.0.0",
   "websocket_secret": "change-me-websocket-secret",
   "webhook_secret": "change-me-webhook-secret",
-  "token_header": "X-Gitlab-Token"
+  "token_header": "X-Gitlab-Token",
+  "group_path": "example-group"
 }

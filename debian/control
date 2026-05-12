@@ -1,0 +1,14 @@
+Source: pipeline-horn
+Section: utils
+Priority: optional
+Maintainer: Federico <federico@example.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://gitlab.com/example/pipeline-horn
+
+Package: pipeline-horn-client
+Architecture: armhf
+Depends: ${misc:Depends}, alsa-utils | mpg123
+Description: Raspberry Pi client for GitLab pipeline failure alerts
+ Persistent websocket client that plays a sound when the server
+ sends a pipeline failure notification.

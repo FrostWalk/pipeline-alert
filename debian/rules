@@ -1,0 +1,18 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE=1
+export GO111MODULE=on
+export GOOS=linux
+export GOARCH=arm
+export GOARM=7
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	go build -trimpath -ldflags="-s -w" -o pipeline-horn-client ./cmd/client
+
+override_dh_auto_install:
+	install -D pipeline-horn-client debian/pipeline-horn-client/usr/bin/pipeline-horn-client
+
+override_dh_auto_test:

@@ -1,0 +1,5 @@
+pipeline-horn (0.1.0) unstable; urgency=medium
+
+  * Initial Debian package for the Raspberry Pi client.
+
+ -- Federico <federico@example.com>  Tue, 12 May 2026 23:30:00 +0200

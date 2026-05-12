@@ -1,0 +1,2 @@
+# Copy to /etc/default/pipeline-horn-client and adjust values.
+CLIENT_ARGS="--server_url=example.com --server_port=443 --websocket_secret=change-me --sound_path=/usr/share/pipeline-horn-client/sound.wav"

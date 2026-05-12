@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"pipeline-horn/internal/client"
 	"pipeline-horn/internal/config"
 	applog "pipeline-horn/internal/log"
 
@@ -32,4 +36,11 @@ func main() {
 		zap.Bool("accept_invalid_tls", cfg.AcceptInvalidTLS),
 		zap.String("sound_path", cfg.SoundPath),
 	)
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	if err := client.Run(ctx, cfg, logger); err != nil && err != context.Canceled {
+		logger.Fatal("client stopped", zap.Error(err))
+	}
 }

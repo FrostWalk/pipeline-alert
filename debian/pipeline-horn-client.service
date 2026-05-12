@@ -1,0 +1,14 @@
+[Unit]
+Description=Pipeline Horn client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/pipeline-horn-client
+ExecStart=/usr/bin/pipeline-horn-client $CLIENT_ARGS
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

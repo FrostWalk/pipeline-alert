@@ -1,0 +1,9 @@
+services:
+  pipeline-horn-server:
+    container_name: pipeline-horn-server
+    image: ghcr.io/frostwalk/pipeline-alert:latest
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
