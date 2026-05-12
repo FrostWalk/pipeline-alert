@@ -41,19 +41,21 @@ builds:
 
 archives: []
 
-dockers:
+dockers_v2:
   - id: server
     ids:
       - server
-    goos: linux
-    goarch: amd64
     dockerfile: Dockerfile.release
-    image_templates:
-      - "ghcr.io/frostwalk/pipeline-alert:{{ .Tag }}"
-      - "ghcr.io/frostwalk/pipeline-alert:latest"
-    build_flag_templates:
-      - "--label=org.opencontainers.image.source=https://github.com/FrostWalk/pipeline-alert"
-      - "--label=org.opencontainers.image.description=GitLab pipeline failure alert server"
+    images:
+      - "ghcr.io/frostwalk/pipeline-alert"
+    tags:
+      - "{{ .Tag }}"
+      - "latest"
+    labels:
+      org.opencontainers.image.source: "https://github.com/FrostWalk/pipeline-alert"
+      org.opencontainers.image.description: "GitLab pipeline failure alert server"
+    platforms:
+      - linux/amd64
 
 nfpms:
   - id: pipeline-horn-client
