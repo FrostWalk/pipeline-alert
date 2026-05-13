@@ -29,6 +29,8 @@ func NewRouter(server *Server) *gin.Engine {
 	router.POST("/webhook", server.Webhook)
 	router.GET("/ws", server.Websocket)
 
+	router.NoRoute(spaHandler())
+
 	return router
 }
 
