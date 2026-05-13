@@ -4,8 +4,11 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"pipeline-horn/internal/auth"
 	"pipeline-horn/internal/config"
+	"pipeline-horn/internal/loghub"
 	"pipeline-horn/internal/notify"
+	"pipeline-horn/internal/sounds"
 	"pipeline-horn/internal/ws"
 )
 
@@ -17,10 +20,15 @@ type Server struct {
 	logger     *zap.Logger
 	clients    *ws.Manager
 	dispatcher *notify.Dispatcher
+
+	jwt       *auth.JWT
+	sounds    *sounds.Store
+	serverHub *loghub.Hub
+	piHub     *loghub.Hub
 }
 
 // NewServer builds handler dependencies from server config.
-func NewServer(cfg config.ServerConfig, logger *zap.Logger) *Server {
+func NewServer(cfg config.ServerConfig, logger *zap.Logger, serverHub, piHub *loghub.Hub, soundStore *sounds.Store) *Server {
 	clients := ws.NewManager()
 	cooldown := notify.NewCooldown(cooldownInterval)
 
@@ -29,5 +37,9 @@ func NewServer(cfg config.ServerConfig, logger *zap.Logger) *Server {
 		logger:     logger,
 		clients:    clients,
 		dispatcher: notify.NewDispatcher(cooldown, clients, logger),
+		jwt:        auth.NewJWT(cfg),
+		sounds:     soundStore,
+		serverHub:  serverHub,
+		piHub:      piHub,
 	}
 }

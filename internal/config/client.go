@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
 const (
 	defaultClientServerPort = 443
 	defaultClientSoundPath  = "/usr/share/pipeline-horn-client/horn.mp3"
+	defaultClientSoundDir   = "/var/lib/pipeline-horn-client/sounds"
 )
 
 type ClientConfig struct {
@@ -20,6 +22,7 @@ type ClientConfig struct {
 	AcceptInvalidTLS bool
 	WebsocketSecret  string
 	SoundPath        string
+	SoundDir         string
 }
 
 func LoadClientConfigFromArgs(args []string) (ClientConfig, error) {
@@ -31,7 +34,8 @@ func LoadClientConfigFromArgs(args []string) (ClientConfig, error) {
 	flags.IntVar(&cfg.ServerPort, "server_port", defaultClientServerPort, "server port")
 	flags.BoolVar(&cfg.AcceptInvalidTLS, "accept_invalid_tls", false, "accept invalid TLS certificates")
 	flags.StringVar(&cfg.WebsocketSecret, "websocket_secret", "", "websocket secret")
-	flags.StringVar(&cfg.SoundPath, "sound_path", defaultClientSoundPath, "path to sound file")
+	flags.StringVar(&cfg.SoundPath, "sound_path", defaultClientSoundPath, "default sound file when nothing selected")
+	flags.StringVar(&cfg.SoundDir, "sound_dir", defaultClientSoundDir, "directory for synced sounds and selection state")
 
 	if err := flags.Parse(args); err != nil {
 		return ClientConfig{}, fmt.Errorf("parse client flags: %w", err)
@@ -61,6 +65,9 @@ func validateClientConfig(cfg ClientConfig) error {
 	} else if err := validateSoundPath(cfg.SoundPath); err != nil {
 		errs = append(errs, err)
 	}
+	if strings.TrimSpace(cfg.SoundDir) == "" {
+		errs = append(errs, fmt.Errorf("sound_dir is required"))
+	}
 
 	return errors.Join(errs...)
 }
@@ -74,4 +81,13 @@ func validateSoundPath(path string) error {
 		return fmt.Errorf("sound_path %q is not a regular file", path)
 	}
 	return nil
+}
+
+// EnsureSoundDir creates the sound directory tree.
+func EnsureSoundDir(dir string) error {
+	d := filepath.Clean(strings.TrimSpace(dir))
+	if d == "" || d == "." {
+		return fmt.Errorf("invalid sound_dir")
+	}
+	return os.MkdirAll(d, 0o750)
 }

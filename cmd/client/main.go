@@ -35,6 +35,7 @@ func main() {
 		zap.Int("server_port", cfg.ServerPort),
 		zap.Bool("accept_invalid_tls", cfg.AcceptInvalidTLS),
 		zap.String("sound_path", cfg.SoundPath),
+		zap.String("sound_dir", cfg.SoundDir),
 	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

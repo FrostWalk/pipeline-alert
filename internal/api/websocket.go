@@ -2,11 +2,14 @@ package api
 
 import (
 	"crypto/subtle"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
 
 	applog "pipeline-horn/internal/log"
+	"pipeline-horn/internal/loghub"
+	"pipeline-horn/internal/piws"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -44,9 +47,10 @@ func (s *Server) Websocket(c *gin.Context) {
 		logger.Info("websocket client disconnected", zap.String("remote_addr", c.ClientIP()))
 	}()
 
-	conn.SetReadLimit(64)
+	conn.SetReadLimit(1 << 20)
 	_ = conn.SetReadDeadline(time.Now().Add(90 * time.Second))
 	conn.SetPongHandler(func(string) error {
+		s.clients.TouchPong()
 		return conn.SetReadDeadline(time.Now().Add(90 * time.Second))
 	})
 
@@ -69,13 +73,39 @@ func (s *Server) Websocket(c *gin.Context) {
 	defer close(pingDone)
 
 	for {
-		if _, _, err := conn.ReadMessage(); err != nil {
+		messageType, payload, err := conn.ReadMessage()
+		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				logger.Warn("websocket read failed", zap.Error(err))
 			}
 			return
 		}
+		s.clients.TouchRead()
+		if messageType == websocket.TextMessage {
+			s.handlePiWSMessage(payload)
+		}
 	}
+}
+
+func (s *Server) handlePiWSMessage(payload []byte) {
+	var msg piws.PiLog
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		return
+	}
+	if msg.Type != piws.TypePiLog {
+		return
+	}
+	lvl := strings.TrimSpace(msg.Level)
+	if lvl == "" {
+		lvl = "info"
+	}
+	ev := loghub.PiLogEvent{
+		Timestamp: time.Now().UTC(),
+		Level:     lvl,
+		Message:   msg.Message,
+		Fields:    msg.Fields,
+	}
+	s.piHub.Publish(ev)
 }
 
 func bearerToken(header string) (string, bool) {

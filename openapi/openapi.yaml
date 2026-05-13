@@ -1,0 +1,390 @@
+openapi: 3.1.0
+info:
+  title: Pipeline Horn Management API
+  version: 1.0.0
+  description: |
+    Authenticated REST API for Raspberry Pi client management, sound library, and log streaming.
+    Web UI should use `POST /auth/login` then `Authorization: Bearer <token>` on protected routes.
+servers:
+  - url: /
+    description: Same origin as Gin server
+
+tags:
+  - name: Auth
+    description: JWT authentication
+  - name: Pi
+    description: Raspberry Pi status and sounds
+  - name: Logs
+    description: Server-Sent Events log streams
+
+paths:
+  /auth/login:
+    post:
+      operationId: authLogin
+      tags: [Auth]
+      summary: Obtain JWT access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              default:
+                value:
+                  username: admin
+                  password: secret
+      responses:
+        '200':
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/pi/status:
+    get:
+      operationId: piGetStatus
+      tags: [Pi]
+      summary: Raspberry Pi websocket connection status
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PiStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/pi/sounds:
+    get:
+      operationId: piListSounds
+      tags: [Pi]
+      summary: List uploaded sounds and selected sound
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sound library
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoundListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: piUploadSound
+      tags: [Pi]
+      summary: Upload a sound file (synced to Pi immediately when connected)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Audio file (e.g. mp3, wav)
+      responses:
+        '201':
+          description: Sound stored and sync initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoundUploadResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Sound with same filename already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Invalid file or missing field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/pi/sounds/select:
+    post:
+      operationId: piSelectSound
+      tags: [Pi]
+      summary: Select which uploaded sound the Pi plays on notify
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectSoundRequest'
+      responses:
+        '200':
+          description: Selection updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelectSoundResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Unknown sound file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /api/logs/server/stream:
+    get:
+      operationId: logsStreamServer
+      tags: [Logs]
+      summary: SSE stream of server application logs (includes webhook_received events)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: accessToken
+          in: query
+          required: false
+          schema:
+            type: string
+          description: |
+            Optional JWT for browsers where `EventSource` cannot send `Authorization`.
+            Prefer `Authorization: Bearer` when possible.
+      responses:
+        '200':
+          description: |
+            `text/event-stream` with named events. Event types: `log` (payload matches ServerLogEvent),
+            `ping` (keepalive, empty or minimal JSON).
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/logs/pi/stream:
+    get:
+      operationId: logsStreamPi
+      tags: [Logs]
+      summary: SSE stream of Raspberry Pi client logs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: accessToken
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional JWT for EventSource; prefer Authorization header when possible.
+      responses:
+        '200':
+          description: |
+            `text/event-stream`. Event types: `log` (PiLogEvent), `ping`.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: HS256 JWT from `POST /auth/login`
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    UnprocessableEntity:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+
+  schemas:
+    ErrorBody:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Stable machine-readable code (e.g. `INVALID_TOKEN`, `VALIDATION_ERROR`)
+            message:
+              type: string
+            details:
+              description: Optional structured context (validation errors, etc.)
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    LoginResponse:
+      type: object
+      required: [accessToken, tokenType, expiresInSeconds]
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresInSeconds:
+          type: integer
+          minimum: 1
+
+    PiStatus:
+      type: object
+      required: [isConnected, selectedFileName]
+      properties:
+        isConnected:
+          type: boolean
+        connectedSince:
+          type: string
+          format: date-time
+          description: RFC3339 when current session started; omitted if disconnected
+        lastSeenAt:
+          type: string
+          format: date-time
+          description: Last activity (read/pong); omitted if never connected
+        selectedFileName:
+          type: string
+          description: Server-side selected sound filename (empty string if none)
+
+    SoundListResponse:
+      type: object
+      required: [sounds, selectedFileName]
+      properties:
+        sounds:
+          type: array
+          items:
+            $ref: '#/components/schemas/SoundInfo'
+        selectedFileName:
+          type: string
+
+    SoundInfo:
+      type: object
+      required: [fileName, sizeBytes, contentType, updatedAt]
+      properties:
+        fileName:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+          minimum: 0
+        contentType:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+
+    SoundUploadResponse:
+      type: object
+      required: [fileName, sizeBytes, syncedToPi]
+      properties:
+        fileName:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        syncedToPi:
+          type: boolean
+          description: true if websocket client connected and sync completed
+
+    SelectSoundRequest:
+      type: object
+      required: [fileName]
+      properties:
+        fileName:
+          type: string
+
+    SelectSoundResponse:
+      type: object
+      required: [selectedFileName, appliedToPi]
+      properties:
+        selectedFileName:
+          type: string
+        appliedToPi:
+          type: boolean
+
+    ServerLogEvent:
+      type: object
+      required: [timestamp, level, logger, message, eventType]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        level:
+          type: string
+          description: zap level name (info, warn, error, ...)
+        logger:
+          type: string
+        message:
+          type: string
+        eventType:
+          type: string
+          description: application | webhook_received | ...
+        fields:
+          type: object
+          additionalProperties: true
+          description: Extra structured fields (webhook metadata, etc.)
+
+    PiLogEvent:
+      type: object
+      required: [timestamp, level, message]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        level:
+          type: string
+        message:
+          type: string
+        fields:
+          type: object
+          additionalProperties: true
