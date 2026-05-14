@@ -111,6 +111,9 @@ type soundInfo struct {
 	SizeBytes   int64     `json:"sizeBytes"`
 	ContentType string    `json:"contentType"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+	SHA256      string    `json:"sha256,omitempty"`
+	Origin      string    `json:"origin,omitempty"`
+	IsDefault   bool      `json:"isDefault,omitempty"`
 }
 
 // PiListSounds lists stored sounds.
@@ -132,6 +135,9 @@ func (s *Server) PiListSounds(c *gin.Context) {
 			SizeBytes:   x.SizeBytes,
 			ContentType: x.ContentType,
 			UpdatedAt:   x.UpdatedAt,
+			SHA256:      x.SHA256,
+			Origin:      x.Origin,
+			IsDefault:   x.IsDefault,
 		})
 	}
 	c.JSON(http.StatusOK, soundListResponse{Sounds: out, SelectedFileName: sel})

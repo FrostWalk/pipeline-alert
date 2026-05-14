@@ -322,6 +322,16 @@ components:
         updatedAt:
           type: string
           format: date-time
+        sha256:
+          type: string
+          description: SHA-256 of file bytes
+        origin:
+          type: string
+          enum: [server, client]
+          description: Where file was first discovered
+        isDefault:
+          type: boolean
+          description: True when file is Pi fallback/default sound
 
     SoundUploadResponse:
       type: object

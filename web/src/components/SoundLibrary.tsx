@@ -14,6 +14,11 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+type SyncSoundInfo = SoundInfo & {
+  origin?: 'server' | 'client'
+  isDefault?: boolean
+}
+
 export function SoundLibrary() {
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -93,6 +98,7 @@ export function SoundLibrary() {
             </TableHeader>
             <TableBody>
               {data.sounds.map((sound: SoundInfo) => {
+                const syncSound = sound as SyncSoundInfo
                 const isSelected = sound.fileName === data.selectedFileName
                 return (
                   <TableRow key={sound.fileName} className={isSelected ? 'bg-muted/50' : ''}>
@@ -101,6 +107,10 @@ export function SoundLibrary() {
                         {isSelected && <Check className="h-3.5 w-3.5 text-green-500 shrink-0" />}
                         {sound.fileName}
                         {isSelected && <Badge variant="secondary" className="text-xs">active</Badge>}
+                        {syncSound.isDefault && <Badge variant="outline" className="text-xs">default</Badge>}
+                        {syncSound.origin && (
+                          <Badge variant="outline" className="text-xs">{syncSound.origin}</Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">

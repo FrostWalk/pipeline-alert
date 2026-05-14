@@ -8,20 +8,17 @@ const MAX_ENTRIES = 500
 
 export function useLogStream(url: string, token: string | null) {
   const [entries, setEntries] = useState<LogEntry[]>([])
-  const [status, setStatus] = useState<StreamStatus>('connecting')
+  const [status, setStatus] = useState<StreamStatus>('closed')
   const esRef = useRef<EventSource | null>(null)
 
   useEffect(() => {
     if (!token) {
-      setStatus('closed')
       return
     }
 
     const fullUrl = `${url}?accessToken=${encodeURIComponent(token)}`
     const es = new EventSource(fullUrl)
     esRef.current = es
-
-    setStatus('connecting')
 
     es.onopen = () => setStatus('open')
 
@@ -45,10 +42,14 @@ export function useLogStream(url: string, token: string | null) {
     return () => {
       es.close()
       esRef.current = null
+      setStatus('closed')
     }
   }, [url, token])
 
   const clear = () => setEntries([])
 
-  return { entries, status, clear }
+  const resolvedStatus: StreamStatus =
+    !token ? 'closed' : status === 'open' || status === 'error' ? status : 'connecting'
+
+  return { entries, status: resolvedStatus, clear }
 }

@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -31,6 +32,12 @@ const (
 
 type selectedFile struct {
 	FileName string `json:"fileName"`
+}
+
+type inventorySource struct {
+	Path      string
+	SHA256    string
+	IsDefault bool
 }
 
 // Run maintains a persistent websocket connection and plays sounds on notify frames.
@@ -100,6 +107,12 @@ func connectOnce(ctx context.Context, cfg config.ClientConfig, logger *zap.Logge
 	wslog.PiLog("info", "websocket connected")
 
 	connectedAt := time.Now()
+	sources, err := sendInventory(cfg)
+	if err != nil {
+		logger.Warn("failed to send sound inventory", zap.Error(err))
+		wslog.PiLog("warn", fmt.Sprintf("failed to send sound inventory: %v", err))
+		sources = map[string]inventorySource{}
+	}
 
 	var syncName string
 	var syncTotal int64
@@ -127,7 +140,7 @@ func connectOnce(ctx context.Context, cfg config.ClientConfig, logger *zap.Logge
 				}
 			}
 		case websocket.TextMessage:
-			if err := handleTextControl(cfg, logger, payload, &syncName, &syncTotal, &syncBuf); err != nil {
+			if err := handleTextControl(cfg, logger, payload, &syncName, &syncTotal, &syncBuf, sources, wslog.SendJSON); err != nil {
 				logger.Warn("control message error", zap.Error(err))
 				wslog.PiLog("warn", fmt.Sprintf("control message error: %v", err))
 			}
@@ -137,7 +150,16 @@ func connectOnce(ctx context.Context, cfg config.ClientConfig, logger *zap.Logge
 	}
 }
 
-func handleTextControl(cfg config.ClientConfig, logger *zap.Logger, payload []byte, syncName *string, syncTotal *int64, syncBuf *[]byte) error {
+func handleTextControl(
+	cfg config.ClientConfig,
+	logger *zap.Logger,
+	payload []byte,
+	syncName *string,
+	syncTotal *int64,
+	syncBuf *[]byte,
+	sources map[string]inventorySource,
+	send func(any) error,
+) error {
 	var probe struct {
 		Type string `json:"type"`
 	}
@@ -223,6 +245,26 @@ func handleTextControl(cfg config.ClientConfig, logger *zap.Logger, payload []by
 		logger.Info("active sound updated", zap.String("file", base))
 		wslog.PiLog("info", fmt.Sprintf("active sound updated file=%s", base))
 
+	case piws.TypeSoundRequestUpload:
+		var m piws.SoundRequestUpload
+		if err := json.Unmarshal(payload, &m); err != nil {
+			return err
+		}
+		base := filepath.Base(m.FileName)
+		src, ok := sources[base]
+		if !ok {
+			return fmt.Errorf("upload request for unknown file")
+		}
+		data, err := os.ReadFile(src.Path)
+		if err != nil {
+			return err
+		}
+		if err := piws.UploadSound(send, base, data, src.SHA256, src.IsDefault); err != nil {
+			return err
+		}
+		logger.Info("uploaded requested sound", zap.String("file", base))
+		wslog.PiLog("info", fmt.Sprintf("uploaded requested sound file=%s", base))
+
 	default:
 		return nil
 	}
@@ -267,6 +309,100 @@ func writeSelectedName(dir, fileName string) error {
 		return err
 	}
 	return os.Rename(tmp, filepath.Join(dir, ".selected"))
+}
+
+func sendInventory(cfg config.ClientConfig) (map[string]inventorySource, error) {
+	inventory, sources, err := buildInventory(cfg)
+	if err != nil {
+		return nil, err
+	}
+	msg := piws.SoundInventory{
+		Type:   piws.TypeSoundInventory,
+		Sounds: inventory,
+	}
+	if err := wslog.SendJSON(msg); err != nil {
+		return nil, err
+	}
+	return sources, nil
+}
+
+func buildInventory(cfg config.ClientConfig) ([]piws.SoundInventoryItem, map[string]inventorySource, error) {
+	entries, err := os.ReadDir(cfg.SoundDir)
+	if err != nil {
+		return nil, nil, err
+	}
+	sources := make(map[string]inventorySource)
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		name := entry.Name()
+		path := filepath.Join(cfg.SoundDir, name)
+		hash, err := hashFile(path)
+		if err != nil {
+			continue
+		}
+		sources[name] = inventorySource{
+			Path:      path,
+			SHA256:    hash,
+			IsDefault: false,
+		}
+	}
+
+	defaultName := filepath.Base(cfg.SoundPath)
+	if defaultName != "" && !strings.HasPrefix(defaultName, ".") {
+		if hash, err := hashFile(cfg.SoundPath); err == nil {
+			if existing, ok := sources[defaultName]; ok {
+				if existing.SHA256 == hash {
+					existing.IsDefault = true
+					sources[defaultName] = existing
+				} else {
+					ext := filepath.Ext(defaultName)
+					base := strings.TrimSuffix(defaultName, ext)
+					defaultName = base + ".default" + ext
+					sources[defaultName] = inventorySource{
+						Path:      cfg.SoundPath,
+						SHA256:    hash,
+						IsDefault: true,
+					}
+				}
+			} else {
+				sources[defaultName] = inventorySource{
+					Path:      cfg.SoundPath,
+					SHA256:    hash,
+					IsDefault: true,
+				}
+			}
+		}
+	}
+
+	items := make([]piws.SoundInventoryItem, 0, len(sources))
+	for name, src := range sources {
+		fi, err := os.Stat(src.Path)
+		if err != nil || !fi.Mode().IsRegular() {
+			continue
+		}
+		items = append(items, piws.SoundInventoryItem{
+			FileName:  name,
+			SizeBytes: fi.Size(),
+			SHA256:    src.SHA256,
+			IsDefault: src.IsDefault,
+		})
+	}
+	return items, sources, nil
+}
+
+func hashFile(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(b)
+	return fmt.Sprintf("%x", sum[:]), nil
 }
 
 func websocketURL(cfg config.ClientConfig) (string, error) {

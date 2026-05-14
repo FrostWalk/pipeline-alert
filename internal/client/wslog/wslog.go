@@ -55,3 +55,18 @@ func PiLog(level, message string) {
 		return
 	}
 }
+
+// SendJSON writes a JSON text message on the active websocket.
+func SendJSON(v any) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if cur == nil {
+		return websocket.ErrCloseSent
+	}
+	_ = cur.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	return cur.WriteMessage(websocket.TextMessage, b)
+}

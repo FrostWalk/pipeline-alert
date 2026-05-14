@@ -74,12 +74,14 @@ export function PiStatusCard() {
           </div>
         )}
 
-        {data.selectedFileName && (
-          <div className="text-sm">
-            <span className="text-muted-foreground">Active sound: </span>
+        <div className="text-sm">
+          <span className="text-muted-foreground">Active sound: </span>
+          {data.selectedFileName ? (
             <span className="font-mono text-xs">{data.selectedFileName}</span>
-          </div>
-        )}
+          ) : (
+            <span className="text-muted-foreground">default fallback</span>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

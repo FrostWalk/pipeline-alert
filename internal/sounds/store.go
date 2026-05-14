@@ -1,9 +1,11 @@
 package sounds
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"mime"
 	"os"
@@ -13,6 +15,7 @@ import (
 )
 
 const selectedFileName = ".selected.json"
+const catalogFileName = ".catalog.json"
 
 // SelectedState persists chosen sound on disk.
 type SelectedState struct {
@@ -22,6 +25,11 @@ type SelectedState struct {
 // Store manages sound files under a directory.
 type Store struct {
 	dir string
+}
+
+type metadata struct {
+	Origin    string `json:"origin,omitempty"`
+	IsDefault bool   `json:"isDefault,omitempty"`
 }
 
 func NewStore(dir string) (*Store, error) {
@@ -36,6 +44,7 @@ func (s *Store) Dir() string { return s.dir }
 
 // List returns non-hidden files in the store.
 func (s *Store) List() ([]Info, error) {
+	catalog, _ := s.readCatalog()
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		return nil, err
@@ -52,15 +61,23 @@ func (s *Store) List() ([]Info, error) {
 		if !info.Mode().IsRegular() {
 			continue
 		}
+		sum, err := s.hashFile(e.Name())
+		if err != nil {
+			continue
+		}
 		ct := mime.TypeByExtension(filepath.Ext(e.Name()))
 		if ct == "" {
 			ct = "application/octet-stream"
 		}
+		meta := catalog[e.Name()]
 		out = append(out, Info{
 			FileName:    e.Name(),
 			SizeBytes:   info.Size(),
 			ContentType: ct,
 			UpdatedAt:   info.ModTime().UTC(),
+			SHA256:      sum,
+			Origin:      meta.Origin,
+			IsDefault:   meta.IsDefault,
 		})
 	}
 	return out, nil
@@ -71,6 +88,9 @@ type Info struct {
 	SizeBytes   int64
 	ContentType string
 	UpdatedAt   time.Time
+	SHA256      string
+	Origin      string
+	IsDefault   bool
 }
 
 func (s *Store) Selected() (string, error) {
@@ -141,7 +161,41 @@ func (s *Store) SaveUploaded(fileName string, src io.Reader, maxBytes int64) (in
 		_ = os.Remove(tmp)
 		return 0, err
 	}
+	_ = s.upsertCatalog(base, metadata{Origin: "server", IsDefault: false})
 	return n, nil
+}
+
+// UpsertFromClient stores sound bytes sent by Pi client.
+// If a filename collision has different content, it stores a deterministic renamed copy.
+func (s *Store) UpsertFromClient(fileName string, data []byte, maxBytes int64, expectedSHA256 string, isDefault bool) (Info, error) {
+	base := filepath.Base(fileName)
+	if base != fileName || base == "." || base == ".." || strings.HasPrefix(base, ".") {
+		return Info{}, fmt.Errorf("invalid file name")
+	}
+	if int64(len(data)) > maxBytes {
+		return Info{}, fmt.Errorf("file exceeds max size")
+	}
+	actual := hashBytes(data)
+	if strings.TrimSpace(expectedSHA256) != "" && !strings.EqualFold(actual, strings.TrimSpace(expectedSHA256)) {
+		return Info{}, fmt.Errorf("sha256 mismatch")
+	}
+
+	targetName := base
+	existing, err := s.ReadFileBytes(base, maxBytes)
+	if err == nil {
+		existingHash := hashBytes(existing)
+		if !strings.EqualFold(existingHash, actual) {
+			targetName = collisionName(base, actual)
+		}
+	}
+
+	if has, _ := s.Has(targetName); !has {
+		if err := os.WriteFile(filepath.Join(s.dir, targetName), data, 0o640); err != nil {
+			return Info{}, err
+		}
+	}
+	_ = s.upsertCatalog(targetName, metadata{Origin: "client", IsDefault: isDefault})
+	return s.buildInfo(targetName)
 }
 
 func (s *Store) Has(fileName string) (bool, error) {
@@ -181,4 +235,103 @@ func (s *Store) ReadFileBytes(fileName string, max int64) ([]byte, error) {
 		return nil, fmt.Errorf("file exceeds max read size")
 	}
 	return b, nil
+}
+
+func (s *Store) buildInfo(fileName string) (Info, error) {
+	fi, err := os.Stat(filepath.Join(s.dir, fileName))
+	if err != nil {
+		return Info{}, err
+	}
+	sum, err := s.hashFile(fileName)
+	if err != nil {
+		return Info{}, err
+	}
+	catalog, _ := s.readCatalog()
+	meta := catalog[fileName]
+	ct := mime.TypeByExtension(filepath.Ext(fileName))
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	return Info{
+		FileName:    fileName,
+		SizeBytes:   fi.Size(),
+		ContentType: ct,
+		UpdatedAt:   fi.ModTime().UTC(),
+		SHA256:      sum,
+		Origin:      meta.Origin,
+		IsDefault:   meta.IsDefault,
+	}, nil
+}
+
+func (s *Store) hashFile(fileName string) (string, error) {
+	f, err := s.Open(fileName)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hexHash(h), nil
+}
+
+func hashBytes(data []byte) string {
+	h := sha256.Sum256(data)
+	return fmt.Sprintf("%x", h[:])
+}
+
+func hexHash(h hash.Hash) string {
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func collisionName(fileName, sha string) string {
+	ext := filepath.Ext(fileName)
+	base := strings.TrimSuffix(fileName, ext)
+	short := strings.ToLower(sha)
+	if len(short) > 12 {
+		short = short[:12]
+	}
+	return base + ".client-" + short + ext
+}
+
+func (s *Store) readCatalog() (map[string]metadata, error) {
+	b, err := os.ReadFile(filepath.Join(s.dir, catalogFileName))
+	if errors.Is(err, os.ErrNotExist) {
+		return map[string]metadata{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]metadata
+	if err := json.Unmarshal(b, &out); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		return map[string]metadata{}, nil
+	}
+	return out, nil
+}
+
+func (s *Store) upsertCatalog(fileName string, meta metadata) error {
+	catalog, err := s.readCatalog()
+	if err != nil {
+		return err
+	}
+	prev := catalog[fileName]
+	if prev.Origin == "server" && meta.Origin == "client" {
+		meta.Origin = "server"
+	}
+	meta.IsDefault = prev.IsDefault || meta.IsDefault
+	catalog[fileName] = meta
+	b, err := json.MarshalIndent(catalog, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := filepath.Join(s.dir, catalogFileName+".tmp")
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, filepath.Join(s.dir, catalogFileName))
 }
