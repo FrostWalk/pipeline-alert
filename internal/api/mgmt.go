@@ -90,10 +90,8 @@ func (s *Server) PiStatus(c *gin.Context) {
 	}
 	var sincePtr, lastPtr *time.Time
 	if ok {
-		t := since
-		sincePtr = &t
-		t2 := last
-		lastPtr = &t2
+		sincePtr = new(since)
+		lastPtr = new(last)
 	}
 	c.JSON(http.StatusOK, piStatusResponse{
 		IsConnected:      ok,
@@ -151,8 +149,7 @@ func (s *Server) PiUploadSound(c *gin.Context) {
 
 	fh, err := c.FormFile("file")
 	if err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			writeError(c, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "file too large", nil)
 			return
 		}

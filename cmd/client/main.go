@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -41,7 +42,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	if err := client.Run(ctx, cfg, logger); err != nil && err != context.Canceled {
+	if err := client.Run(ctx, cfg, logger); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Fatal("client stopped", zap.Error(err))
 	}
 }

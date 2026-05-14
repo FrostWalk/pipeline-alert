@@ -4,6 +4,8 @@ services:
     image: ghcr.io/frostwalk/pipeline-alert:latest
     env_file:
       - .env
+    volumes:
+      - ./data/sounds:/data/sounds
     ports:
       - "8080:8080"
     restart: unless-stopped
