@@ -45,7 +45,7 @@ dockers_v2:
   - id: server
     ids:
       - server
-    dockerfile: Dockerfile.release
+    dockerfile: Dockerfile
     images:
       - "ghcr.io/frostwalk/pipeline-alert"
     tags:
