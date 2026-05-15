@@ -6,7 +6,7 @@ Build-Depends: debhelper-compat (= 13)
 Standards-Version: 4.6.2
 
 Package: pipeline-horn-client
-Architecture: armhf
+Architecture: arm64
 Depends: ${misc:Depends}, alsa-utils | mpg123
 Description: Raspberry Pi client for GitLab pipeline failure alerts
  Persistent websocket client that plays a sound when the server

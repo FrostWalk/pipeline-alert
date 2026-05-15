@@ -3,8 +3,7 @@
 export DH_VERBOSE=1
 export GO111MODULE=on
 export GOOS=linux
-export GOARCH=arm
-export GOARM=7
+export GOARCH=arm64
 
 %:
 	dh $@
