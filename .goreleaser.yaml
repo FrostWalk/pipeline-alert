@@ -39,7 +39,9 @@ builds:
       - -s
       - -w
 
-archives: []
+archives:
+  - formats:
+      - binary
 
 dockers_v2:
   - id: server
@@ -66,7 +68,7 @@ nfpms:
       - deb
     vendor: FrostWalk
     homepage: https://github.com/FrostWalk/pipeline-alert
-    maintainer: Federico <federico@example.com>
+    maintainer: Federico
     description: Raspberry Pi client for GitLab pipeline failure alerts.
     section: utils
     priority: optional
