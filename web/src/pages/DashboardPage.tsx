@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { LogStream } from '@/components/LogStream'
 import { PiStatusCard } from '@/components/PiStatusCard'
 import { SoundLibrary } from '@/components/SoundLibrary'
+import { TokenSecretsCard } from '@/components/TokenSecretsCard'
 import { useLogStream } from '@/hooks/useLogStream'
 import { useAuthStore } from '@/lib/auth-store'
 
@@ -36,6 +37,8 @@ export function DashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        <TokenSecretsCard />
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <PiStatusCard />
           <SoundLibrary />

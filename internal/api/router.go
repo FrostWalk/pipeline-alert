@@ -18,6 +18,7 @@ func NewRouter(server *Server) *gin.Engine {
 	apiGroup := router.Group("/api")
 	apiGroup.Use(server.jwtAuthMiddleware())
 	{
+		apiGroup.GET("/integration/tokens", server.IntegrationTokens)
 		apiGroup.GET("/pi/status", server.PiStatus)
 		apiGroup.GET("/pi/sounds", server.PiListSounds)
 		apiGroup.POST("/pi/sounds", server.PiUploadSound)

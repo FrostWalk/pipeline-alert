@@ -16,6 +16,7 @@ JWT-protected REST endpoints and SSE log streams for a web UI. OpenAPI contract:
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `POST` | `/auth/login` | Issue JWT (`AUTH_USERNAME` / `AUTH_PASSWORD`) |
+| `GET` | `/api/integration/tokens` | GitLab webhook secret (`WEBHOOK_SECRET`) and Pi websocket token (`WEBSOCKET_SECRET`) |
 | `GET` | `/api/pi/status` | Pi websocket connection + selected sound |
 | `GET` | `/api/pi/sounds` | List uploaded sounds |
 | `POST` | `/api/pi/sounds` | Multipart upload (`file` field); syncs to Pi over websocket |
@@ -24,6 +25,8 @@ JWT-protected REST endpoints and SSE log streams for a web UI. OpenAPI contract:
 | `GET` | `/api/logs/pi/stream` | SSE Pi client logs |
 
 Use header `Authorization: Bearer <jwt>`. For browser `EventSource`, pass JWT as query `accessToken` on the log stream URLs (see OpenAPI).
+
+The web dashboard shows integration tokens masked by default with reveal and copy controls. Treat responses as sensitive.
 
 ## Server
 

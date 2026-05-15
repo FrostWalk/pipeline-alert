@@ -12,6 +12,8 @@ servers:
 tags:
   - name: Auth
     description: JWT authentication
+  - name: Integration
+    description: GitLab webhook and Pi websocket shared secrets
   - name: Pi
     description: Raspberry Pi status and sounds
   - name: Logs
@@ -53,6 +55,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorBody'
+
+  /api/integration/tokens:
+    get:
+      operationId: integrationGetTokens
+      tags: [Integration]
+      summary: GitLab webhook and Pi websocket shared secrets
+      description: |
+        Returns `WEBHOOK_SECRET` (GitLab group webhook token) and `WEBSOCKET_SECRET`
+        (Pi client Bearer token). Requires management JWT.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Integration tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationTokens'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /api/pi/status:
     get:
@@ -277,6 +299,17 @@ components:
         expiresInSeconds:
           type: integer
           minimum: 1
+
+    IntegrationTokens:
+      type: object
+      required: [webhookSecret, websocketSecret]
+      properties:
+        webhookSecret:
+          type: string
+          description: Shared secret for GitLab webhook token header (`WEBHOOK_SECRET`)
+        websocketSecret:
+          type: string
+          description: Bearer token for Pi websocket auth (`WEBSOCKET_SECRET`)
 
     PiStatus:
       type: object

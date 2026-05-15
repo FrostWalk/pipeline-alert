@@ -101,6 +101,19 @@ func (s *Server) PiStatus(c *gin.Context) {
 	})
 }
 
+type integrationTokensResponse struct {
+	WebhookSecret   string `json:"webhookSecret"`
+	WebsocketSecret string `json:"websocketSecret"`
+}
+
+// IntegrationTokens returns shared secrets for GitLab webhook and Pi websocket auth.
+func (s *Server) IntegrationTokens(c *gin.Context) {
+	c.JSON(http.StatusOK, integrationTokensResponse{
+		WebhookSecret:   s.cfg.WebhookSecret,
+		WebsocketSecret: s.cfg.WebsocketSecret,
+	})
+}
+
 type soundListResponse struct {
 	Sounds           []soundInfo `json:"sounds"`
 	SelectedFileName string      `json:"selectedFileName"`
